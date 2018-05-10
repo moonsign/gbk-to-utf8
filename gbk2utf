@@ -32,6 +32,12 @@ case $(uname) in
 	"Darwin")
 	FILECMD="file -I"
 	REALPATHCMD="realpath"
+	"${REALPATHCMD}" >& /dev/null
+	if [[ $? -eq 127 ]]; then
+		echo "Seems you don't have realpath installed on your mac."
+		echo "If you're using homebrew you install with: brew install coreutils"
+		exit 0
+	fi
 	;;
 esac
 
