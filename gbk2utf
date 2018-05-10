@@ -110,9 +110,10 @@ _convert()
 #main begin
 echo
 if [[ ! $1 ]]; then
-	echo "${MARGIN}$(echo $(basename $0 ".sh")|tr "[a-z]" "[A-Z]") - convert file encoding from GBK/GB18030 to UTF-8."
-	echo "${MARGIN}  USAGE   $(basename $0) [directory]"
-	echo "${MARGIN}          $(basename $0) [file1] [file2] [file3] ..."
+	echo "${MARGIN}Convert file encoding from GBK/GB18030 to UTF-8."
+	echo
+	echo "${MARGIN}Usage: $(basename $0) [directory]"
+	echo "${MARGIN}       $(basename $0) [file1] [file2] [file3] ..."
 	echo
 	exit 0
 fi
