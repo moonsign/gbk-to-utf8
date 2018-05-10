@@ -58,12 +58,23 @@ _should_i_convert(){
 _convert()
 {
 	to_convert="$1"
-	encoding="$(${FILECMD} "${to_convert}"|awk -F ';' '{split($2,a,"="); print a[2]}')"
-	printf "[PROMPT] Converting \"${to_convert}\"(${encoding}) ... "
+	encoding="$(${FILECMD} "${to_convert}"| awk '{split($0,a,"charset=");print a[2]}')"
+	printf "   [PROMP] Converting \"${to_convert}\"($([[ -z "${encoding}" ]]&&echo "unknown"||echo "${encoding}")) ... "
 	if [[ -z "${encoding}" ]]; then
-		echo "aborted, unknown encoding."
-		# echo "[INFO] Skipped unknown encoding file ${to_convert}" >> ${logfile}
-		return
+		byte_count=$(wc -c "${to_convert}"|awk '{print $1}')
+		char_count=$(wc -m "${to_convert}"|awk '{print $1}')
+		if [[ ${byte_count} -eq ${char_count} ]]; then
+			echo "skipped, ASCII text."
+			return
+		fi
+		head -n 500 "${to_convert}"| iconv -f gb18030 -t gb18030 >& /dev/null
+		if [[ $? -eq 0 ]]; then
+			encoding="iso-8859-1"
+		else
+			# echo "[INFO] Skipped unknown encoding file ${to_convert}" >> ${logfile}
+			echo "aborted, unknown encoding and failed to try."
+			return
+		fi
 	fi
 
 	_should_i_convert "${encoding}"
@@ -76,26 +87,31 @@ _convert()
 			mcmd="mv -f \"${tmpfile}\" \"${to_convert}\""
 			#echo ${mcmd}
 			eval ${mcmd} >& /dev/null
+			printf "   "
 			if [[ $? -eq 0 ]]; then
 				echo "[INFO] Finished converting file \"${to_convert}\"." | tee -a ${logfile}
-				count++
+				let count++
 			else
 				echo "[ERROR] Failed to move \"${tmpfile}\" to \"${to_convert}\"." | tee -a ${logfile}
 			fi
 		else
 			echo "failed."
+			printf "   "
 			echo "[ERROR] Failed to convert file \"${to_convert}\"(${encoding})" | tee -a ${logfile}
 		fi
 	else
 		echo "skipped."
-		# echo "[PROMPT] Skipped file \"${to_convert}\"(${encoding})" >> ${logfile}
+		# echo "[PROMP] Skipped file \"${to_convert}\"(${encoding})" >> ${logfile}
 	fi
 }
 
+#main begin
+echo
 if [[ ! $1 ]]; then
-	echo "Usage: to convert file encoding from GBK/GB18030 to UTF-8."
-	echo "e.g.   $(basename $0) directory"
-	echo "       $(basename $0) file1 file2 file3 ..."
+	echo "   Usage: to convert file encoding from GBK/GB18030 to UTF-8."
+	echo "   e.g.:  $(basename $0) directory"
+	echo "         $(basename $0) file1 file2 file3 ..."
+	echo
 	exit 0
 fi
 
@@ -117,24 +133,31 @@ if [ ! -f ${logfile} ]; then
 fi
 
 if [[ -z "${filelist}" ]]; then
-	echo "Nothing to do."
+	echo "   Nothing to do."
+	echo
 	exit 0
 fi
 
 tmpfile="$(mktemp -t "$(basename $0)_XXXXXX")"
 count=0
+printf "   "
 echo "[$(date "+%Y-%m-%d %H:%M:%S")] Strat converting." | tee -a ${logfile}
 # eval "${fcmd}" 2> /dev/null | while read file; do
 echo "${filelist}" | while read file; do
-	if [ -f "${file}" ]; then
+	if [[ -f "${file}" ]]; then
+		if [[ "${file}" =~ ^.*$(basename $0).*$ ]]; then
+			continue
+		fi
 		_convert "$(${REALPATHCMD} "${file}")"
 	else
-		echo "No such file \"${file}\" or it's a directory."
+		echo "   [PROMP] Skipped \"${file}\", it's a directory."
 	fi
 done
 
 rm -f "${tmpfile}"
 
+printf "   "
 echo "[$(date "+%Y-%m-%d %H:%M:%S")] Finished converting ${count} file$([[ ${count} -gt 1 ]]&&echo s)." | tee -a ${logfile}
 echo "" >> ${logfile}
-echo "You can view \"${logfile}\" for more information."
+echo "   [PROMP] You can view \"${logfile}\" for details."
+echo
