@@ -46,6 +46,8 @@ if [[ -f "${CONFFILE}" ]]; then
 	source "${CONFFILE}"
 fi
 
+MARGIN="   "
+
 _should_i_convert(){
 	for to_convert_encoding in ${to_convert_encodings[@]}; do
 		if [[ "$1" = "${to_convert_encoding}" ]]; then
@@ -59,7 +61,7 @@ _convert()
 {
 	to_convert="$1"
 	encoding="$(${FILECMD} "${to_convert}"| awk '{split($0,a,"charset=");print a[2]}')"
-	printf "   [PROMP] Converting \"${to_convert}\"($([[ -z "${encoding}" ]]&&echo "unknown"||echo "${encoding}")) ... "
+	printf "${MARGIN}[PROMP] Converting \"${to_convert}\"($([[ -z "${encoding}" ]]&&echo "unknown"||echo "${encoding}")) ... "
 	if [[ -z "${encoding}" ]]; then
 		byte_count=$(wc -c "${to_convert}"|awk '{print $1}')
 		char_count=$(wc -m "${to_convert}"|awk '{print $1}')
@@ -87,7 +89,7 @@ _convert()
 			mcmd="mv -f \"${tmpfile}\" \"${to_convert}\""
 			#echo ${mcmd}
 			eval ${mcmd} >& /dev/null
-			printf "   "
+			printf "${MARGIN}"
 			if [[ $? -eq 0 ]]; then
 				echo "[INFO] Finished converting file \"${to_convert}\"." | tee -a ${logfile}
 				let count++
@@ -96,7 +98,7 @@ _convert()
 			fi
 		else
 			echo "failed."
-			printf "   "
+			printf "${MARGIN}"
 			echo "[ERROR] Failed to convert file \"${to_convert}\"(${encoding})" | tee -a ${logfile}
 		fi
 	else
@@ -108,9 +110,9 @@ _convert()
 #main begin
 echo
 if [[ ! $1 ]]; then
-	echo "   Usage: to convert file encoding from GBK/GB18030 to UTF-8."
-	echo "   e.g.:  $(basename $0) directory"
-	echo "         $(basename $0) file1 file2 file3 ..."
+	echo "${MARGIN}Usage: to convert file encoding from GBK/GB18030 to UTF-8."
+	echo "${MARGIN}e.g.:  $(basename $0) directory"
+	echo "${MARGIN}${MARGIN}${MARGIN}$(basename $0) file1 file2 file3 ..."
 	echo
 	exit 0
 fi
@@ -133,14 +135,14 @@ if [ ! -f ${logfile} ]; then
 fi
 
 if [[ -z "${filelist}" ]]; then
-	echo "   Nothing to do."
+	echo "${MARGIN}Nothing to do."
 	echo
 	exit 0
 fi
 
 tmpfile="$(mktemp -t "$(basename $0)_XXXXXX")"
 count=0
-printf "   "
+printf "${MARGIN}"
 echo "[$(date "+%Y-%m-%d %H:%M:%S")] Strat converting." | tee -a ${logfile}
 # eval "${fcmd}" 2> /dev/null | while read file; do
 echo "${filelist}" | while read file; do
@@ -150,14 +152,14 @@ echo "${filelist}" | while read file; do
 		fi
 		_convert "$(${REALPATHCMD} "${file}")"
 	else
-		echo "   [PROMP] Skipped \"${file}\", it's a directory."
+		echo "${MARGIN}[PROMP] Skipped \"${file}\", it's a directory."
 	fi
 done
 
 rm -f "${tmpfile}"
 
-printf "   "
+printf "${MARGIN}"
 echo "[$(date "+%Y-%m-%d %H:%M:%S")] Finished converting ${count} file$([[ ${count} -gt 1 ]]&&echo s)." | tee -a ${logfile}
 echo "" >> ${logfile}
-echo "   [PROMP] You can view \"${logfile}\" for details."
+echo "${MARGIN}[PROMP] You can view \"${logfile}\" for details."
 echo
