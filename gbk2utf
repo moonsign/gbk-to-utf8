@@ -1,0 +1,134 @@
+#!/bin/sh
+
+to_convert_encodings=(
+"iso-8859-1"
+)
+
+extentions=(
+"*.cpp*"
+"*.cxx*"
+"*.c*"
+"*.h*"
+"*.txt*"
+"*makefile*"
+"*.sh*"
+"*.sql*"
+"*.ini*"
+"*.sys*"
+"*.xml*"
+"*.java*"
+"*.properties*"
+)
+
+MAXDEPTH=1
+
+FILECMD=
+REALPATHCMD=
+case $(uname) in
+	"Linux")
+	FILECMD="file -i"
+	REALPATHCMD="readlink -f"
+	;;
+	"Darwin")
+	FILECMD="file -I"
+	REALPATHCMD="realpath"
+	;;
+esac
+
+CONFFILE="$(dirname "$(${REALPATHCMD} "$0")")/$(basename $0 .sh).conf"
+if [[ -f "${CONFFILE}" ]]; then
+	source "${CONFFILE}"
+fi
+
+_should_i_convert(){
+	for to_convert_encoding in ${to_convert_encodings[@]}; do
+		if [[ "$1" = "${to_convert_encoding}" ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+_convert()
+{
+	to_convert="$1"
+	encoding="$(${FILECMD} "${to_convert}"|awk -F ';' '{split($2,a,"="); print a[2]}')"
+	printf "[PROMPT] Converting \"${to_convert}\"(${encoding}) ... "
+	if [[ -z "${encoding}" ]]; then
+		echo "aborted, unknown encoding."
+		# echo "[INFO] Skipped unknown encoding file ${to_convert}" >> ${logfile}
+		return
+	fi
+
+	_should_i_convert "${encoding}"
+	if [[ $? -eq 0 ]]; then
+		icmd="iconv -s -f gb18030 -t utf8 \"${to_convert}\" > \"${tmpfile}\""
+		#echo ${icmd}
+		eval ${icmd} >& /dev/null
+		if [ $? -eq 0 ]; then
+			echo "converted."
+			mcmd="mv -f \"${tmpfile}\" \"${to_convert}\""
+			#echo ${mcmd}
+			eval ${mcmd} >& /dev/null
+			if [[ $? -eq 0 ]]; then
+				echo "[INFO] Finished converting file \"${to_convert}\"." | tee -a ${logfile}
+				count++
+			else
+				echo "[ERROR] Failed to move \"${tmpfile}\" to \"${to_convert}\"." | tee -a ${logfile}
+			fi
+		else
+			echo "failed."
+			echo "[ERROR] Failed to convert file \"${to_convert}\"(${encoding})" | tee -a ${logfile}
+		fi
+	else
+		echo "skipped."
+		# echo "[PROMPT] Skipped file \"${to_convert}\"(${encoding})" >> ${logfile}
+	fi
+}
+
+if [[ ! $1 ]]; then
+	echo "Usage: to convert file encoding from GBK/GB18030 to UTF-8."
+	echo "e.g.   $(basename $0) directory"
+	echo "       $(basename $0) file1 file2 file3 ..."
+	exit 0
+fi
+
+filelist=
+if [[ -d $1 ]]; then
+	fcmd="find \"$1\" -maxdepth ${MAXDEPTH} -type f -a \( -name \"${extentions[0]}\""
+	for i in $(seq  1 $(( ${#extentions[@]} -1 )) ) ; do
+		fcmd="${fcmd} -o -name \"${extentions[$i]}\""
+	done
+	fcmd="${fcmd} \)"
+	filelist="$(eval "${fcmd}" 2> /dev/null)"
+else
+	filelist="$(ls -d $@ 2> /dev/null)"
+fi
+
+logfile="${HOME}/$(basename $0).log"
+if [ ! -f ${logfile} ]; then
+	touch ${logfile}
+fi
+
+if [[ -z "${filelist}" ]]; then
+	echo "Nothing to do."
+	exit 0
+fi
+
+tmpfile="$(mktemp -t "$(basename $0)_XXXXXX")"
+count=0
+echo "[$(date "+%Y-%m-%d %H:%M:%S")] Strat converting." | tee -a ${logfile}
+# eval "${fcmd}" 2> /dev/null | while read file; do
+echo "${filelist}" | while read file; do
+	if [ -f "${file}" ]; then
+		_convert "$(${REALPATHCMD} "${file}")"
+	else
+		echo "No such file \"${file}\" or it's a directory."
+	fi
+done
+
+rm -f "${tmpfile}"
+
+echo "[$(date "+%Y-%m-%d %H:%M:%S")] Finished converting ${count} file$([[ ${count} -gt 1 ]]&&echo s)." | tee -a ${logfile}
+echo "" >> ${logfile}
+echo "You can view \"${logfile}\" for more information."
