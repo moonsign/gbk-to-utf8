@@ -74,7 +74,7 @@ _convert()
 			encoding="iso-8859-1"
 		else
 			# echo "[INFO] Skipped unknown encoding file ${to_convert}" >> ${logfile}
-			echo "aborted, unknown encoding and failed to try."
+			echo "aborted, failed to try."
 			return
 		fi
 	fi
@@ -85,15 +85,17 @@ _convert()
 		#echo ${icmd}
 		eval ${icmd} >& /dev/null
 		if [ $? -eq 0 ]; then
-			echo "converted."
 			mcmd="mv -f \"${tmpfile}\" \"${to_convert}\""
 			#echo ${mcmd}
 			eval ${mcmd} >& /dev/null
-			printf "${MARGIN}"
 			if [[ $? -eq 0 ]]; then
+				echo "converted."
+				printf "${MARGIN}"
 				echo "[INFO] Finished converting file \"${to_convert}\"." | tee -a ${logfile}
 				let count++
 			else
+				echo "failed."
+				printf "${MARGIN}"
 				echo "[ERROR] Failed to move \"${tmpfile}\" to \"${to_convert}\"." | tee -a ${logfile}
 			fi
 		else
@@ -103,7 +105,8 @@ _convert()
 		fi
 	else
 		echo "skipped."
-		# echo "[PROMP] Skipped file \"${to_convert}\"(${encoding})" >> ${logfile}
+		# printf "${MARGIN}"
+		# echo "[INFO] Skipped file \"${to_convert}\"(${encoding})" >> ${logfile}
 	fi
 }
 
