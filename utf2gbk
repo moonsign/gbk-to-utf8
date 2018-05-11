@@ -14,8 +14,8 @@ else
 fi
 # to combine to one script, replace code above with enco.src code
 
-DST_CHARSET="utf8"
-SRC_CHARSET="gb18030"
+DST_CHARSET="gb18030"
+SRC_CHARSET="utf8"
 
 #main begin
 echo

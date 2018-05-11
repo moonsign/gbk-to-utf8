@@ -14,14 +14,30 @@ else
 fi
 # to combine to one script, replace code above with enco.src code
 
-DST_CHARSET="utf8"
-SRC_CHARSET="gb18030"
 
 #main begin
 echo
-if [[ ! $1 ]]; then
-	_usage
+if [[ ( $1 == "-t" || $1 == "--to-charset" ) && $2 && $3 ]]; then
+	:
+else
+	_usage_f
 fi
 
+case "$(echo $2|tr "[A-Z]" "[a-z]")" in
+	"utf8"|"utf-8")
+	DST_CHARSET="utf8"
+	SRC_CHARSET="gb18030"
+	;;
+	"gb18030"|"gbk")
+	DST_CHARSET="gb18030"
+	SRC_CHARSET="utf8"
+	;;
+	*)
+	echo "${MARGIN} Unsupported charset \"$2\", supported charset: UTF-8, GB18030."
+	echo
+	exit 1
+	;;
+esac
+shift 2
 _convert $@
 echo

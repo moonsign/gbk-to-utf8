@@ -1,0 +1,234 @@
+#!/bin/bash
+
+# to_convert_encodings=(
+# "$(_get_file_charset "${SRC_CHARSET}")"
+# )
+
+extentions=(
+"*.cpp*"
+"*.cxx*"
+"*.c*"
+"*.h*"
+"*.txt*"
+"*makefile*"
+"*.sh*"
+"*.sql*"
+"*.ini*"
+"*.sys*"
+"*.xml*"
+"*.java*"
+"*.properties*"
+)
+
+MAXDEPTH=1
+
+FILECMD=
+REALPATHCMD=
+case $(uname) in
+	"Linux")
+	FILECMD="file -i"
+	REALPATHCMD="readlink -f"
+	;;
+	"Darwin")
+	FILECMD="file -I"
+	REALPATHCMD="realpath"
+	"${REALPATHCMD}" >& /dev/null
+	if [[ $? -eq 127 ]]; then
+		echo "Seems you don't have realpath installed on your mac."
+		echo "If you're using homebrew you install with: brew install coreutils"
+		REALPATHCMD=
+	fi
+	;;
+esac
+
+CONFFILE="${_where_am_i}/enco.conf"
+if [[ -f "${CONFFILE}" ]]; then
+	source "${CONFFILE}"
+fi
+
+MARGIN="   "
+
+# _should_i_convert(){
+# 	for to_convert_encoding in ${to_convert_encodings[@]}; do
+# 		if [[ "$1" = "${to_convert_encoding}" ]]; then
+# 			return 0
+# 		fi
+# 	done
+# 	return 1
+# }
+
+_should_i_convert(){
+	if [[ "$1" = "$(_get_file_charset "${SRC_CHARSET}")" ]]; then
+		return 0
+	fi
+	return 1
+}
+
+DST_CHARSET="utf8"
+SRC_CHARSET="gb18030"
+
+_get_desc(){
+	case $1 in
+		"utf8") echo "UTF-8";;
+		"gb18030") echo "GBK/GB18030" ;;
+		*) : ;;
+	esac
+}
+
+_get_name(){
+	case $1 in
+		"utf8") echo "UTF-8";;
+		"gbk") echo "GBK" ;;
+		"gb18030") echo "GB18030" ;;
+		*) : ;;
+	esac
+}
+
+_get_file_charset(){
+	case $1 in
+		"utf8") echo "utf-8";;
+		"gbk") echo "iso-8859-1" ;;
+		"gb18030") echo "iso-8859-1" ;;
+		*) : ;;
+	esac
+}
+
+_convert_one_file()
+{
+	to_convert="$1"
+	encoding="$(${FILECMD} "${to_convert}"| awk '{split($0,a,"charset=");print a[2]}')"
+	printf "${MARGIN}[PROMP] Converting \"${to_convert}\"($([[ -z "${encoding}" ]]&&echo "unknown"||echo "${encoding}")) ... "
+	if [[ -z "${encoding}" ]]; then
+		byte_count=$(wc -c "${to_convert}"|awk '{print $1}')
+		char_count=$(wc -m "${to_convert}"|awk '{print $1}')
+		if [[ ${byte_count} -eq ${char_count} ]]; then
+			echo "skipped, ASCII text."
+			return
+		fi
+		head -n 500 "${to_convert}"| iconv -f ${SRC_CHARSET} -t ${SRC_CHARSET} >& /dev/null
+		if [[ $? -eq 0 ]]; then
+			encoding="$(_get_file_charset "${SRC_CHARSET}")"
+		else
+			# echo "[INFO] Skipped unknown encoding file ${to_convert}" >> ${logfile}
+			echo "aborted, failed to try."
+			return
+		fi
+	fi
+
+	_should_i_convert "${encoding}"
+	if [[ $? -eq 0 ]]; then
+		icmd="iconv -s -f ${SRC_CHARSET} -t ${DST_CHARSET} \"${to_convert}\" > \"${tmpfile}\""
+		#echo ${icmd}
+		eval ${icmd} >& /dev/null
+		if [ $? -eq 0 ]; then
+			mcmd="mv -f \"${tmpfile}\" \"${to_convert}\""
+			#echo ${mcmd}
+			eval ${mcmd} >& /dev/null
+			if [[ $? -eq 0 ]]; then
+				echo "converted."
+				printf "${MARGIN}"
+				echo "[INFO] Finished converting file \"${to_convert}\"." | tee -a ${logfile}
+				return 0
+			else
+				echo "failed."
+				printf "${MARGIN}"
+				echo "[ERROR] Failed to move \"${tmpfile}\" to \"${to_convert}\"." | tee -a ${logfile}
+			fi
+		else
+			echo "failed."
+			printf "${MARGIN}"
+			echo "[ERROR] Failed to convert file \"${to_convert}\"(${encoding})" | tee -a ${logfile}
+		fi
+	else
+		echo "skipped."
+		# printf "${MARGIN}"
+		# echo "[INFO] Skipped file \"${to_convert}\"(${encoding})" >> ${logfile}
+	fi
+	return 1
+}
+
+_usage(){
+	echo "${MARGIN}Convert file encoding from $(_get_desc ${SRC_CHARSET}) to $(_get_desc ${DST_CHARSET})."
+	echo
+	echo "${MARGIN}Usage: $(basename $0) [directory]"
+	echo "${MARGIN}       $(basename $0) [file1] [file2] [file3] ..."
+	echo
+	exit 0
+}
+
+_usage_f(){
+	echo "${MARGIN}Convert file encoding with specified encoding."
+	echo
+	echo "${MARGIN}Usage: $(basename $0) [-t|--to-charset] [charset] [directory]"
+	echo "${MARGIN}       $(basename $0) [-t|--to-charset] [charset] [file1] [file2] [file3] ..."
+	echo
+	exit 0
+}
+
+_get_files(){
+	cmd=$1
+	filelist=()
+	eval "$(
+	eval "${cmd}" 2> /dev/null | awk '{
+		printf("filelist[%d]=\"%s\"\n",NR-1,$0);
+	}' 2> /dev/null
+	)"
+}
+
+_convert(){
+	_find_condition="-maxdepth ${MAXDEPTH} -type f -a \( -name \"${extentions[0]}\""
+	for i in $(seq  1 $(( ${#extentions[@]} -1 )) ) ; do
+		_find_condition="${_find_condition} -o -name \"${extentions[$i]}\""
+	done
+	_find_condition="${_find_condition} \)"
+
+	if [[ -d $1 ]]; then
+		fcmd="find \"$1\" ${_find_condition}"
+		_get_files "${fcmd}"
+	else
+		lcmd="ls -d $@"
+		_get_files "${lcmd}"
+	fi
+
+	logfile="${HOME}/$(basename $0 ".sh").log"
+	if [ ! -f ${logfile} ]; then
+		touch ${logfile}
+	fi
+
+	if [[ -z "${filelist}" ]]; then
+		echo "${MARGIN}No file was found."
+		echo
+		exit 0
+	fi
+
+	_count=0
+	tmpfile="$(mktemp -t "$(basename $0)_XXXXXX")"
+	printf "${MARGIN}"
+	echo "[$(date "+%Y-%m-%d %H:%M:%S")] Strat converting file encoding to $( _get_desc ${DST_CHARSET})." | tee -a ${logfile}
+	# eval "${fcmd}" 2> /dev/null | while read file; do
+	for i in $(seq 0 $(( ${#filelist[@]} - 1 ))); do
+		file="${filelist[$i]}"
+		if [[ -f "${file}" ]]; then
+			if [[ "${file}" =~ ^.*$(basename $0).*$ ]]; then
+				continue
+			fi
+			if [[ -z "${REALPATHCMD}" ]]; then
+				_convert_one_file "${file}"
+			else
+				_convert_one_file "$(${REALPATHCMD} "${file}")"
+			fi
+			if [[ $? -eq 0 ]]; then
+				export _count=$(( _count + 1 ))
+			fi
+		else
+			echo "${MARGIN}[PROMP] Skipped \"${file}\", it's a directory."
+		fi
+	done
+
+	rm -f "${tmpfile}"
+
+	printf "${MARGIN}"
+	echo "[$(date "+%Y-%m-%d %H:%M:%S")] Finished converting ${_count} file$([[ ${_count} -gt 1 ]]&&echo s)." | tee -a ${logfile}
+	echo "" >> ${logfile}
+	echo "${MARGIN}[PROMP] You can view \"${logfile}\" for details."
+}
