@@ -207,7 +207,7 @@ _convert(){
 	tmpfile="$(mktemp -t "$(basename $0)_XXXXXX")"
 	echo
 	printf "${MARGIN}"
-	echo "[$(date "+%Y-%m-%d %H:%M:%S")] Strat converting file encoding to $( _get_desc ${DST_CHARSET})." | tee -a ${logfile}
+	echo "[$(date "+%Y-%m-%d %H:%M:%S")] Start converting file encoding to $( _get_desc ${DST_CHARSET})." | tee -a ${logfile}
 	# eval "${fcmd}" 2> /dev/null | while read file; do
 	for i in $(seq 0 $(( ${#filelist[@]} - 1 ))); do
 		file="${filelist[$i]}"
@@ -233,5 +233,5 @@ _convert(){
 	printf "${MARGIN}"
 	echo "[$(date "+%Y-%m-%d %H:%M:%S")] Finished converting ${_count} file$([[ ${_count} -gt 1 ]]&&echo s)." | tee -a ${logfile}
 	echo "" | tee -a ${logfile}
-	echo "${MARGIN}[PROMP] You can view \"${logfile}\" for details."
+	echo "${MARGIN}[PROMP] You can view \"${logfile}\" for less details."
 }
